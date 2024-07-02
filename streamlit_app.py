@@ -1,119 +1,56 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import io
 
+# 파일 업로드 함수
+def load_data(uploaded_file):
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+            return df
+        except Exception as e:
+            st.error(f"Error: {e}")
+    return None
 
-st.title("📊 Data evaluation app")
+# 메인 함수
+def main():
+    st.title('뉴스 대시보드')
 
-st.write(
-    "We are so glad to see you here. ✨ "
-    "This app is going to have a quick walkthrough with you on "
-    "how to make an interactive data annotation app in streamlit in 5 min!"
-)
+    # 파일 업로더 추가
+    uploaded_file = st.file_uploader("CSV 파일을 선택하세요", type="csv")
 
-st.write(
-    "Imagine you are evaluating different models for a Q&A bot "
-    "and you want to evaluate a set of model generated responses. "
-    "You have collected some user data. "
-    "Here is a sample question and response set."
-)
+    if uploaded_file is not None:
+        df = load_data(uploaded_file)
+        
+        if df is not None:
+            # 사이드바: 필터링 옵션
+            st.sidebar.header('필터링 옵션')
+            keyword = st.sidebar.text_input('키워드로 필터링:')
 
-data = {
-    "Questions": [
-        "Who invented the internet?",
-        "What causes the Northern Lights?",
-        "Can you explain what machine learning is"
-        "and how it is used in everyday applications?",
-        "How do penguins fly?",
-    ],
-    "Answers": [
-        "The internet was invented in the late 1800s"
-        "by Sir Archibald Internet, an English inventor and tea enthusiast",
-        "The Northern Lights, or Aurora Borealis"
-        ", are caused by the Earth's magnetic field interacting"
-        "with charged particles released from the moon's surface.",
-        "Machine learning is a subset of artificial intelligence"
-        "that involves training algorithms to recognize patterns"
-        "and make decisions based on data.",
-        " Penguins are unique among birds because they can fly underwater. "
-        "Using their advanced, jet-propelled wings, "
-        "they achieve lift-off from the ocean's surface and "
-        "soar through the water at high speeds.",
-    ],
-}
+            # 키워드로 필터링
+            if keyword:
+                df = df[df['Title'].str.contains(keyword, case=False)]
 
-df = pd.DataFrame(data)
+            # 메인 화면: 데이터 표시
+            st.header('뉴스 목록')
+            st.dataframe(df)
 
-st.write(df)
+            # 뉴스 제목 길이 분석
+            st.header('뉴스 제목 길이 분석')
+            df['Title_Length'] = df['Title'].str.len()
+            fig = px.histogram(df, x='Title_Length', nbins=20, title='뉴스 제목 길이 분포')
+            st.plotly_chart(fig)
 
-st.write(
-    "Now I want to evaluate the responses from my model. "
-    "One way to achieve this is to use the very powerful `st.data_editor` feature. "
-    "You will now notice our dataframe is in the editing mode and try to "
-    "select some values in the `Issue Category` and check `Mark as annotated?` once finished 👇"
-)
+            # 개별 뉴스 상세 정보
+            st.header('개별 뉴스 상세 정보')
+            selected_news = st.selectbox('뉴스 선택:', df['Title'])
+            if selected_news:
+                news_info = df[df['Title'] == selected_news].iloc[0]
+                st.subheader(news_info['Title'])
+                st.write(f"링크: {news_info['Link']}")
+    else:
+        st.info("CSV 파일을 업로드해주세요.")
 
-df["Issue"] = [True, True, True, False]
-df["Category"] = ["Accuracy", "Accuracy", "Completeness", ""]
-
-new_df = st.data_editor(
-    df,
-    column_config={
-        "Questions": st.column_config.TextColumn(width="medium", disabled=True),
-        "Answers": st.column_config.TextColumn(width="medium", disabled=True),
-        "Issue": st.column_config.CheckboxColumn("Mark as annotated?", default=False),
-        "Category": st.column_config.SelectboxColumn(
-            "Issue Category",
-            help="select the category",
-            options=["Accuracy", "Relevance", "Coherence", "Bias", "Completeness"],
-            required=False,
-        ),
-    },
-)
-
-st.write(
-    "You will notice that we changed our dataframe and added new data. "
-    "Now it is time to visualize what we have annotated!"
-)
-
-st.divider()
-
-st.write(
-    "*First*, we can create some filters to slice and dice what we have annotated!"
-)
-
-col1, col2 = st.columns([1, 1])
-with col1:
-    issue_filter = st.selectbox("Issues or Non-issues", options=new_df.Issue.unique())
-with col2:
-    category_filter = st.selectbox(
-        "Choose a category",
-        options=new_df[new_df["Issue"] == issue_filter].Category.unique(),
-    )
-
-st.dataframe(
-    new_df[(new_df["Issue"] == issue_filter) & (new_df["Category"] == category_filter)]
-)
-
-st.markdown("")
-st.write(
-    "*Next*, we can visualize our data quickly using `st.metrics` and `st.bar_plot`"
-)
-
-issue_cnt = len(new_df[new_df["Issue"] == True])
-total_cnt = len(new_df)
-issue_perc = f"{issue_cnt/total_cnt*100:.0f}%"
-
-col1, col2 = st.columns([1, 1])
-with col1:
-    st.metric("Number of responses", issue_cnt)
-with col2:
-    st.metric("Annotation Progress", issue_perc)
-
-df_plot = new_df[new_df["Category"] != ""].Category.value_counts().reset_index()
-
-st.bar_chart(df_plot, x="Category", y="count")
-
-st.write(
-    "Here we are at the end of getting started with streamlit! Happy Streamlit-ing! :balloon:"
-)
-
+if __name__ == '__main__':
+    main()
